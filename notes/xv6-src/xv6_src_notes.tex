@@ -17,8 +17,16 @@
 \section{Introduction}
 
 This article contains information about building and debugging xv6,
-and explanations of the source code of xv6. The information is
-gathered online and compiled with my own understanding.
+and explanations of the source code of xv6 (x86 version, not
+RISC-V). The information is gathered online and compiled with my own
+understanding. The main references are
+
+\begin{itemize}
+\item xv6 book and source code sheet;
+\item xv6-annotated \url{https://github.com/palladian1/xv6-annotated/tree/main};
+\item Yale CS422 \url{https://flint.cs.yale.edu/cs422/assignments/index.html}
+\item x86 instruction reference \url{https://www.felixcloutier.com/x86/}
+\end{itemize}
 
 \section{Compile and Debug}
 
@@ -49,7 +57,22 @@ compiled separately from the kernel, resulting in a flat binary file
 sector (512bytes) in the hard disk, and is loaded into address
 \code{[0x7c00 - 0x7dff]} by the BIOS. After initializing the hardware
 and this loading, the BIOS jumps to \code{0x7c00} to start executing
-the boot loader. To inspect the 
+the boot loader.
+
+To inspect the source code of \code{bootblok}, run the following command~\cite{disasm-flat}:
+
+\begin{tabbing}
+  \qquad\=\kill
+  \> \code{objdump -D -b binary -m i386 bootblock}
+\end{tabbing}
+
+\section{Real-Mode}
+
+The boot loader start running in real-mode with 16-bit registers and
+values. In real-mode logical addresses \code{segment:offset} are used
+to compute linear address \code{segment * 16 + offset}. Switching to
+protected mode make use of GDT (global description table) for
+computing logical addresses.
 
 %%% Bibtex
 \bibliographystyle{plain}

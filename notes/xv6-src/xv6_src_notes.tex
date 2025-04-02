@@ -1,0 +1,58 @@
+\documentclass{article}
+
+\usepackage{xv6}
+
+%%% Title
+\title{Notes about xv6}
+\author{Yuting Wang}
+\date{April 1st, 2025}
+
+
+
+%%% Main body
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+This article contains information about building and debugging xv6,
+and explanations of the source code of xv6. The information is
+gathered online and compiled with my own understanding.
+
+\section{Compile and Debug}
+
+To compile xv6 source in linux, run \code{make}. To debug the source
+code in \code{qemu} with remote debugging, you need to open two
+terminals in the source code directory~\cite{xv6-debug}:
+
+\begin{itemize}
+\item In one terminal, run \code{make qemu-nox-gdb} (No X windows,
+  with GNU debugger);
+
+\item In another terminal, first run \code{gdb kernel} to load the
+  symbol table for kernel. In \code{gdb}, enter \code{target remote
+    localhost:26000} (26000 is the port qemu provides for remote
+  debugging; it depends on the result of the first command).
+\end{itemize}
+
+\section{Layout of Physical Memory}
+
+The first \code{1MB} of physical memory is used by the earliest
+PC. Its layout can be found here~\cite{yale-cs422-as1}.
+
+\section{Bootloader}
+
+Bootloader consists of \code{bootasm.S} and \code{bootmain.c}. It is
+compiled separately from the kernel, resulting in a flat binary file
+\code{bootblock} (not in ELF format). This file reside in the first
+sector (512bytes) in the hard disk, and is loaded into address
+\code{[0x7c00 - 0x7dff]} by the BIOS. After initializing the hardware
+and this loading, the BIOS jumps to \code{0x7c00} to start executing
+the boot loader. To inspect the 
+
+%%% Bibtex
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}

@@ -74,6 +74,12 @@ to compute linear address \code{segment * 16 + offset}. Switching to
 protected mode make use of GDT (global description table) for
 computing logical addresses.
 
+A segment selector \code{segment} is 16-bit long. Its highest 13-bit
+is used for indexing into GDT (which contains $8192 = 2^{13}$
+entries)~\cite{jasoncc-mem}. Each GDT entry is $8$-byte long,
+containing $32$-bit base address, $20$-bit limit (with per-byte and
+per-page granularity) and $12$-bit flags.
+
 %%% Bibtex
 \bibliographystyle{plain}
 \bibliography{refs}

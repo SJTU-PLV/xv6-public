@@ -22,10 +22,10 @@ RISC-V). The information is gathered online and compiled with my own
 understanding. The main references are
 
 \begin{itemize}
-\item xv6 book and source code sheet;
-\item xv6-annotated \url{https://github.com/palladian1/xv6-annotated/tree/main};
-\item Yale CS422 \url{https://flint.cs.yale.edu/cs422/assignments/index.html}
-\item x86 instruction reference \url{https://www.felixcloutier.com/x86/}
+\item xv6 book and source code sheet~\cite{xv6-x86};
+\item xv6-annotated~\cite{xv6-annotated};
+\item Yale CS422~\cite{yale-cs422};
+\item x86 instruction reference~\cite{x86-reference}.
 \end{itemize}
 
 \section{Compile and Debug}
@@ -66,19 +66,130 @@ To inspect the source code of \code{bootblok}, run the following command~\cite{d
   \> \code{objdump -D -b binary -m i386 bootblock}
 \end{tabbing}
 
-\section{Real-Mode}
+\section{Real-Mode to Protected Mode}
 
 The boot loader start running in real-mode with 16-bit registers and
-values. In real-mode logical addresses \code{segment:offset} are used
-to compute linear address \code{segment * 16 + offset}. Switching to
-protected mode make use of GDT (global description table) for
-computing logical addresses.
+values. In real-mode a logical address \code{segment:offset} is used
+to compute linear address \code{segment * 16 + offset} where
+\code{segment} is called a \emph{segment selector}.
 
-A segment selector \code{segment} is 16-bit long. Its highest 13-bit
-is used for indexing into GDT (which contains $8192 = 2^{13}$
-entries)~\cite{jasoncc-mem}. Each GDT entry is $8$-byte long,
-containing $32$-bit base address, $20$-bit limit (with per-byte and
-per-page granularity) and $12$-bit flags.
+The first job of \code{bootasm.S} is to switch from the real-mode to
+protected mode. In protected mode, the translation of logical
+addresses into linear addresses are different. It make use of GDT
+(global description table). A GDT contains $8192$ entries of
+\emph{segment descriptors}, each of which is 8-byte long. Each
+descriptor contains a $32$-bit base address, a $20$-bit limit (with
+per-byte and per-page granularity) and a $12$-bit flags. The macros
+\code{SEG\_ASM} and \code{SEG\_NULLASM} for creating those descriptors
+are defined in \code{asm.h} which I added comments to describe their
+mechanisms.
+
+In the protected mode, segment selector registers are used to store
+selectors for indexing into the GDT (\code{\%cs} for code segment,
+\code{\%ds} for data segment, etc). A selector is 16-bit long with the
+following format:
+%
+\begin{verbatim}
+  15      3  2   0 
+  +--------+--+---+  INDEX: select one of the 8192 descriptors
+  | INDEX  |TI|RPL|  TI: Table Indicator {0=GDT, 1=LDT}
+  +--------+--+---+  RPL: Requested Privilege Level (Ring 0-3)
+\end{verbatim}
+%
+Its highest 13-bit is used for indexing into GDT (which contains
+$8192 = 2^{13}$ entries)~\cite{jasoncc-mem}. \code{RPL} (2-bits)
+indicates the privilege level requested (0-3 ring levels).
+
+In the protected mode, the translation from a logical address
+\code{segment:offset} to a linear address is as follows:
+%
+\begin{itemize}
+\item Extract the index \code{i} from the selector \code{segment}, use
+  it to find \code{i}-th segment descriptor in GDT. Let us call it
+  \code{sdi}.
+
+\item Extract \code{base} and \code{limit} from \code{sdi}.
+
+\item The linear address is \code{base + offset}. If it exceeds
+  \code{limit}, then this address is invalid.
+\end{itemize}
+%
+Therefore, the job of \code{bootasm.S} is to 1) set up a GDT containing
+necessary descriptors, and 2) initialize the segment selector
+registers (\code{\%cs}, \code{\%ds}, \code{\%es}, \code{\%ss},
+\code{\%fs}, and \code{\%gs}) with appropriate indices into the GDT.
+%
+Step 1) is completed by the following instruction:
+%
+\begin{verbatim}
+  lgdt    gdtdesc
+\end{verbatim}
+%
+The GDT contains three entries, the first entry is NULL, the second is
+the code segment, the third is the data segment. The base addresses
+are all set to $0$ for an identity mapping from logical addresses to
+linear addresses (and to the physical addresses).
+%
+Step 2) is completed by the following instructions:
+%
+\begin{verbatim}
+  ljmp    $(SEG_KCODE<<3), $start32
+
+.code32  # Tell assembler to generate 32-bit code now.
+start32:
+  # Set up the protected-mode data segment registers
+  movw    $(SEG_KDATA<<3), %ax    # Our data segment selector
+  movw    %ax, %ds                # -> DS: Data Segment
+  movw    %ax, %es                # -> ES: Extra Segment
+  movw    %ax, %ss                # -> SS: Stack Segment
+  movw    $0, %ax                 # Zero segments not ready for use
+  movw    %ax, %fs                # -> FS
+  movw    %ax, %gs                # -> GS
+\end{verbatim}
+%
+Note that \code{SEG\_KCODE = 1} is used to index into the first entry
+(code segment) in the GDT. The first argument of \code{ljmp} is
+\code{\$(SEG\_KCODE<<3)} which is set to the new value of
+\code{\%cs}. The left shift is to move \code{SEG\_KCODE} into its
+appropriate position (bypassing \code{TI} and \code{RPL}). Same
+processing is required for indexing into the data segment with
+\code{SEG\_KDATA=2}. The unused registers \code{\%fs} and \code{\%gs}
+are set with index $0$ which points into the null segment.
+
+The last step of \code{bootasm.S} is to setup the stack and invoke the
+C part of the boot loader. The following instructions perform this
+task:
+%
+\begin{verbatim}
+  movl    $start, %esp
+  call    bootmain
+\end{verbatim}
+%
+The immediate value \code{\$start} is the beginning of
+\code{bootasm.S} (or the binary \code{bootblock}). This value is set
+to \code{0x7c00} by Makefile for linking \code{bootasm.S} and
+\code{bootmain.c} into \code{bootblock}. That is, it is the beginning
+of the physical address where the boot loader resides at run time. By
+the memory layout~\cite{yale-cs422-as1}, the address range \code{[0 -
+  0x7c00]} is not used. Since stack grows towards lower addresses,
+\code{\%esp} is set to the topmost address of this unused region.
+
+
+\section{Possible Errors in the Resources}
+
+\begin{itemize}
+\item At \url{https://www.felixcloutier.com/x86/lgdt:lidt}, it is said
+  that an GDT entry is 6 bytes, which contradicts with the code that
+  assume an GDT entry is 8 bytes.
+
+\item At
+  \url{https://github.com/palladian1/xv6-annotated/blob/main/boot.md},
+  it is said that ``a logical address consists of a 20-bit segment
+  selector and a 12-bit offset''. However, the segment selector should
+  be 16-bit long while the offset should be 32-bit long. 
+
+\end{itemize}
+
 
 %%% Bibtex
 \bibliographystyle{plain}

@@ -60,6 +60,13 @@ void
 readsect(void *dst, uint offset)
 {
   // Issue command.
+  // 0x1F2 - 0x1F7 are control registers
+  // 0x1F2: how many sectors to read
+  // 0x1F3: the sector number register
+  // 0x1F4: cylinder low register
+  // 0x1F5: cylinder high register
+  // 0x1F6: drive/head register
+  // 0x1F7: status port AND command register 
   waitdisk();
   outb(0x1F2, 1);   // count = 1
   outb(0x1F3, offset);
@@ -69,7 +76,12 @@ readsect(void *dst, uint offset)
   outb(0x1F7, 0x20);  // cmd 0x20 - read sectors
 
   // Read data.
+  // Wait for the disk to be ready for reading a sector
   waitdisk();
+  // Read a sector from the data port 0x1F0 into the
+  // destination memory address 'dst'. Note that because
+  // we are reading long words (ints),
+  // the count is the size divided by 4.
   insl(0x1F0, dst, SECTSIZE/4);
 }
 

@@ -1,5 +1,6 @@
 // Routines to let C code use special x86 instructions.
 
+// Read data from a port
 static inline uchar
 inb(ushort port)
 {
@@ -9,6 +10,24 @@ inb(ushort port)
   return data;
 }
 
+// Copy 'cnt' number of long words (ints) from 'port' to 'addr'
+// 
+// First, 'cld' clears the direction flags to enable looping of 'insl'.
+// 
+// Second, 'rep' command repeats 'insl' for 'cnt' times where 'cnt' is
+// stored in '%ecx'..
+// 
+// Third, 'insl' reads a long word from the 'port' (stored in '%edx')
+// and stores it in the memory location in '%es:%edi'.
+// Since '%es' has been set to a segment descriptor with
+// 0 base address, it means that the value will be stored in the
+// memory location in '%edi' which is 'addr'. The memory address in
+// 'addr' will be adjusted as 'rep' repeats the 'insl' instruction.
+//
+// Finally, the clobbered registers are marked as "memory" and "cc".
+// The former means that a memory write to a variable may clobber any
+// register (hence all registers are clobbered). The latter means
+// condition codes are clobbered.
 static inline void
 insl(int port, void *addr, int cnt)
 {
@@ -18,6 +37,7 @@ insl(int port, void *addr, int cnt)
                "memory", "cc");
 }
 
+// Send data to a port
 static inline void
 outb(ushort port, uchar data)
 {

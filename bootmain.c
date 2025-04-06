@@ -87,6 +87,28 @@ readsect(void *dst, uint offset)
 
 // Read 'count' bytes at 'offset' from kernel into physical address 'pa'.
 // Might copy more than asked.
+//
+//                  sector boundary in memory
+//                  |   pa
+//                  |   |
+//                  V   V
+// +----------------+---+---------------+
+// |                |OFS|               |  Physical memory
+// +----------------+---+---------------+
+//
+//  Sector 0          Sector i
+// +--------+--------+---+----+--------+
+// |        | ...... |OFS|    | ...... |   Hard disk
+// +--------+--------+---+----+--------+
+//          <---offset--->
+//
+// According to this graph, 'readseg' begins from the i-th sector.
+// Sector 0 contains the boot loader. The kernel binary is in the ELF
+// format and stored starting from Sector 1. 'offset' is the offset
+// into this ELF file. Therefore, it starts from Sector 1.
+// OFS = offset % SECTSIZE. It is used to adjust 'pa'
+// so that it starts from the boundary for sector i in memory.
+// 
 void
 readseg(uchar* pa, uint count, uint offset)
 {

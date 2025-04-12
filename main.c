@@ -99,6 +99,10 @@ startothers(void)
 // hence the __aligned__ attribute.
 // PTE_PS in a page directory entry enables 4Mbyte pages.
 
+// Description of 4-MB page directory entry can be found at
+//   
+//   https://wiki.osdev.org/Paging
+//   
 __attribute__((__aligned__(PGSIZE)))
 pde_t entrypgdir[NPDENTRIES] = {
   // Map VA's [0, 4MB) to PA's [0, 4MB)

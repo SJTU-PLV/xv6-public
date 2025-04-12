@@ -36,7 +36,13 @@ bootmain(void)
   eph = ph + elf->phnum;
   for(; ph < eph; ph++){
     pa = (uchar*)ph->paddr;
+    // Read a program segment pointed by 'ph' from the kernel ELF file
+    // on the disk (starting from Sector 1 where the ELF file begins)
+    // into its physical address 'pa'. The reading starts at the
+    // offset 'ph->off' and spans 'ph-filesz' bytes
     readseg(pa, ph->filesz, ph->off);
+    // If the size of memory image is bigger than the file size (e.g.
+    // for .bss segments), the extra space is zeroed.
     if(ph->memsz > ph->filesz)
       stosb(pa + ph->filesz, 0, ph->memsz - ph->filesz);
   }
